@@ -26,10 +26,10 @@ type ActorDep = {
 type ScenarioActor(dep: ActorDep, scenarioInfo: ScenarioInfo) =
 
     let _logger = dep.Logger.ForContext<ScenarioActor>()
-    let _isAllExecSync = Step.isAllExecSync dep.Scenario.Steps
     let mutable _working = false
 
     let _stepDep = {
+        Scenario = dep.Scenario
         ScenarioInfo = scenarioInfo
         Logger = dep.Logger
         CancellationToken = dep.CancellationToken
@@ -41,7 +41,7 @@ type ScenarioActor(dep: ActorDep, scenarioInfo: ScenarioInfo) =
 
     let _steps =
         dep.Scenario.Steps
-        |> List.map(Step.RunningStep.create _stepDep)
+        |> List.map(fun step -> RunningStep.create _stepDep dep.Scenario.StepOrderIndex[step.StepName] step)
         |> List.toArray
 
     let execSteps (runInfinite: bool) = task {
@@ -57,11 +57,7 @@ type ScenarioActor(dep: ActorDep, scenarioInfo: ScenarioInfo) =
 
                     try
                         let stepsOrder = Scenario.getStepOrder dep.Scenario
-
-                        if _isAllExecSync then
-                            Step.execSteps(_stepDep, _steps, stepsOrder)
-                        else
-                            do! Step.execStepsAsync(_stepDep, _steps, stepsOrder)
+                        do! RunningStep.execSteps _stepDep _steps stepsOrder
                     with
                     | ex -> _logger.Error(ex, $"Invalid step order for Scenario: {dep.Scenario.ScenarioName}")
 
